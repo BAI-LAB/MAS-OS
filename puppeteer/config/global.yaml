@@ -1,0 +1,19 @@
+logging:
+  level: INFO
+  logpath: ./logs
+model_weight_path: ""
+api_keys:
+  openai_api_key: ""
+  openai_base_url: ""
+  bing_api_key: ""
+
+max_retry_times: 10
+max_json_reformat_turns: 3
+external_tools_enabled: True
+
+file_path:
+  root_file_path: ./workspace
+
+graph:
+  max_parallel_paths: 1
+  max_step_num: 12

@@ -1,0 +1,27 @@
+# Dual LoRA configuration for MAS Scheduler + Router training
+defaults:
+  - default
+  - _self_
+
+agent_workflow: "chain-of-agents"
+async_workflow: true
+
+# Dual LoRA: two experts (scheduler and router) using same base model
+dual_lora: true
+
+workflow_args:
+  max_steps: 12
+
+# Two agents: Scheduler (agent_index=0) and Router (agent_index=1)
+agents:
+  - scheduler:
+      role: scheduler
+      is_tuning: true
+      chat_template:
+        - "You are a scheduler for a multi-agent reasoning system."
+  - router:
+      role: router
+      is_tuning: true
+      chat_template:
+        - "You are a router for selecting relevant memories."
+
