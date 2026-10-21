@@ -35,3 +35,19 @@ keywords:
   - context allocation
   - memory management
   - reinforcement learning
+preferred-citation:
+  type: conference-paper
+  title: "Collaborative Operating System of Multi-Agent Systems"
+  authors:
+    - family-names: Kang
+      given-names: Jiazheng
+    - family-names: Zhao
+      given-names: Ruochen
+    - family-names: Li
+      given-names: Gezi
+    - family-names: Lin
+      given-names: Dongying
+    - family-names: Bai
+      given-names: Ting
+  collection-title: "Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing (EMNLP)"
+  year: 2026

@@ -1,25 +1,15 @@
 """
-MAS-style Multi-Agent Scheduler entry point using local vLLM deployment.
+MAS-style Multi-Agent Scheduler entry point for MAS-OS benchmarks.
 
-This script uses a locally deployed vLLM server (Llama-3.1-8B-Instruct) for all agents
-instead of external API calls. All components (Scheduler, Router, Memer, Workers) use
-the same local model.
+This script replaces the original REINFORCE-based policy with MAS-style
+LLM-based scheduling (Scheduler + Router + Memer).
 
 Usage:
-    python main_mas_vllm.py <task> <mode> [--data_limit LIMIT] [--max_steps STEPS]
+    python main_mas.py <task> <mode> [--level LEVEL] [--index INDEX] [--data_limit LIMIT]
 
 Example:
-    python main_mas_vllm.py gsm-hard test --data_limit 10 --max_steps 12
-    python main_mas_vllm.py MMLU-Pro validation --data_limit 5
-
-Prerequisites:
-    Start vLLM server first:
-    python -m vllm.entrypoints.openai.api_server \
-        --model <YOUR_MODEL_PATH> \
-        --port 8000 --trust-remote-code \
-        --max-model-len 8192 --max-num-seqs 8
-
-    Then pass the same model id via --model (or export MAS_VLLM_MODEL).
+    python main_mas.py MMLU-Pro validation --data_limit 10
+    python main_mas.py gsm-hard test --data_limit 5
 """
 from __future__ import annotations
 
@@ -29,6 +19,8 @@ import logging
 import os
 import sys
 import yaml
+import gc
+import psutil
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -38,9 +30,9 @@ logging.basicConfig(
     format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
 )
-logger = logging.getLogger("MAS-vLLM")
+logger = logging.getLogger("MAS")
 
-# Import puppeteer components
+# Import MAS-OS components
 from agent.register.register import agent_global_registry
 from agent.agent_info.global_info import GlobalInfo
 from utils.log_manager import LogManager
@@ -58,96 +50,14 @@ from tasks import mmlu_pro, gsm_hard, srdd, creative_writing, scibench
 from tasks.evaluator import BenchmarkEvaluator
 
 
-def create_vllm_config(
-    max_steps: int = 12,
-    model: str = "",
-    base_url: str = "",
-) -> MASConfig:
-    """
-    Create MAS config that uses local vLLM deployment.
-
-    All agents will use the same local model served by vLLM.
-
-    Args:
-        max_steps: Maximum reasoning steps
-        model: Model id as registered in vLLM (falls back to $MAS_VLLM_MODEL)
-        base_url: vLLM OpenAI-compatible endpoint (falls back to $MAS_VLLM_BASE_URL)
-    """
-    config = MASConfig()
-
-    # Configure to use local vLLM server
-    config.openai_api_key = "EMPTY"  # vLLM doesn't require real API key
-    config.openai_base_url = (
-        base_url or os.environ.get("MAS_VLLM_BASE_URL") or "http://localhost:8000/v1"
-    )
-    config.llm_model = model or os.environ.get("MAS_VLLM_MODEL", "")
-    if not config.llm_model:
-        raise SystemExit(
-            "No vLLM model specified. Pass --model, or set $MAS_VLLM_MODEL to the "
-            "model id registered with your vLLM server (e.g. the path you passed "
-            "to `vllm serve`)."
-        )
-
-    # Set max steps
-    config.max_steps = max_steps
-
-    # Enable LLM-based components
-    config.use_llm_scheduler = True
-    config.use_llm_router = True
-    config.use_llm_memer = True
-
-    # Disable feedback collection during evaluation
-    config.collect_feedback = False
-
-    # Temperature for generation
-    config.llm_temperature = 0.0
-
-    logger.info("=" * 60)
-    logger.info("vLLM Configuration")
-    logger.info(f"  Base URL: {config.openai_base_url}")
-    logger.info(f"  Model: {config.llm_model}")
-    logger.info(f"  Max steps: {config.max_steps}")
-    logger.info(f"  Temperature: {config.llm_temperature}")
-    logger.info("=" * 60)
-
-    return config
-
-
-def update_global_config_for_vllm(
-    global_config: Dict[str, Any],
-    mas_config: Optional[MASConfig] = None,
-) -> Dict[str, Any]:
-    """
-    Update global config to use local vLLM for all agent API calls.
-
-    This ensures that worker agents also use the local vLLM deployment, with the
-    same endpoint/model that create_vllm_config resolved.
-    """
-    if "api_keys" not in global_config:
-        global_config["api_keys"] = {}
-
-    base_url = (
-        getattr(mas_config, "openai_base_url", "")
-        or os.environ.get("MAS_VLLM_BASE_URL")
-        or "http://localhost:8000/v1"
-    )
-    model = getattr(mas_config, "llm_model", "") or os.environ.get("MAS_VLLM_MODEL", "")
-
-    # Configure all agents to use local vLLM
-    global_config["api_keys"]["openai_api_key"] = "EMPTY"
-    global_config["api_keys"]["openai_base_url"] = base_url
-    global_config["api_keys"]["openai_model"] = model
-
-    logger.info("Updated global config to use local vLLM for all agents")
-
-    return global_config
-
-
 class MASBenchmarkRunner:
     """
-    Runner that uses MAS-style scheduling with local vLLM deployment.
+    Runner that uses MAS-style scheduling instead of REINFORCE policy.
     
-    All agents (Scheduler, Router, Memer, Workers) use the same local model.
+    Key differences from original BenchmarkRunner:
+    - Uses MASReasoning instead of GraphReasoning
+    - No policy network or training
+    - Pure LLM-based scheduling via Scheduler/Router/Memer
     """
     
     def __init__(
@@ -157,22 +67,27 @@ class MASBenchmarkRunner:
         mas_config: Optional[MASConfig] = None,
     ):
         self.personas_path = personas_path
-        self.mas_config = mas_config or create_vllm_config()
-        self.global_config = update_global_config_for_vllm(global_config, self.mas_config)
-        self.max_step_num = self.mas_config.max_steps
+        self.global_config = global_config
+        self.mas_config = mas_config or DEFAULT_MAS_CONFIG
+        self.max_step_num = self.global_config.get('graph', {}).get('max_step_num', 5)
+        
+        # Update MAS config with global config settings
+        self.mas_config.max_steps = self.max_step_num
+        
+        # ✅ 只注册一次 agents（避免内存泄漏）
+        agent_global_registry.register_all_agents(self.personas_path)
         
         logger.info("=" * 60)
-        logger.info("MAS Benchmark Runner (vLLM) Initialized")
+        logger.info("MAS Benchmark Runner Initialized")
         logger.info(f"  Personas: {personas_path}")
         logger.info(f"  Max steps: {self.max_step_num}")
         logger.info(f"  LLM model: {self.mas_config.llm_model}")
-        logger.info(f"  LLM base URL: {self.mas_config.openai_base_url}")
+        logger.info(f"  Registered {agent_global_registry.agent_num} agents")
         logger.info("=" * 60)
     
     def setup_reasoning(self, data_item: Dict[str, Any]) -> MASReasoning:
         """Setup MAS-style reasoning for a task."""
-        # Register all agents from personas
-        agent_global_registry.register_all_agents(self.personas_path)
+        # ✅ 只 reset agents，不重新注册（避免内存泄漏）
         agent_global_registry.reset_all_agents()
         
         # Get all registered agents
@@ -182,7 +97,7 @@ class MASBenchmarkRunner:
             if agent:
                 agents[name] = agent
         
-        logger.info(f"Registered {len(agents)} agents: {list(agents.keys())}")
+        logger.debug(f"Using {len(agents)} agents: {list(agents.keys())}")
         
         # Create log manager
         log_manager = LogManager("./config/global.yaml", data_item.get("type", "unknown"))
@@ -201,27 +116,58 @@ class MASBenchmarkRunner:
     
     def run_reasoning(self, data_item: Dict[str, Any]) -> str:
         """Run MAS-style reasoning on a single task."""
+        import shutil
+        
         reasoning, workspace_path = self.setup_reasoning(data_item)
         
-        # Create global_info for the task
-        global_info = GlobalInfo(
-            path_id=0,
-            workpath=workspace_path,
-            task=data_item,
-        )
-        # Ensure logger is available for agents
-        global_info.logger = logger
-        
-        # Start reasoning
-        reasoning.start(global_info)
-        
-        # Run for max_step_num steps
-        final_ans, _ = reasoning.n_step(self.max_step_num)
-        
-        # Visualize (optional)
-        reasoning.visualize_path()
-        
-        return final_ans
+        try:
+            # Create global_info for the task
+            global_info = GlobalInfo(
+                path_id=0,
+                workpath=workspace_path,
+                task=data_item,
+            )
+            # Ensure logger is available for agents
+            global_info.logger = logger
+            
+            # Start reasoning
+            reasoning.start(global_info)
+            
+            # Run for max_step_num steps
+            final_ans, _ = reasoning.n_step(self.max_step_num)
+            
+            # Visualize (optional)
+            reasoning.visualize_path()
+            
+            return final_ans
+        finally:
+            # 清理workspace以释放内存和磁盘空间
+            try:
+                if os.path.exists(workspace_path):
+                    shutil.rmtree(workspace_path)
+                    logger.debug(f"Cleaned workspace: {workspace_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean workspace {workspace_path}: {e}")
+            
+            # 清理 reasoning 对象及其引用
+            try:
+                del reasoning
+                del global_info
+            except:
+                pass
+            
+            # 强制垃圾回收（执行两次以清理循环引用）
+            gc.collect()
+            gc.collect()
+            
+            # 检查内存使用情况
+            mem = psutil.virtual_memory()
+            logger.debug(f"Memory usage: {mem.percent:.1f}% ({mem.used / 1024**3:.1f}GB / {mem.total / 1024**3:.1f}GB)")
+            if mem.percent > 85:
+                logger.warning(f"⚠️  High memory usage: {mem.percent:.1f}% ({mem.used / 1024**3:.1f}GB / {mem.total / 1024**3:.1f}GB)")
+                # 如果内存使用过高，额外执行垃圾回收
+                gc.collect()
+                gc.collect()
 
 
 def run_mmlu_pro(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator, 
@@ -236,7 +182,7 @@ def run_mmlu_pro(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
     if data_limit:
         data = data[:data_limit]
     
-    result_path = os.path.join(results_dir, f"MMLU-Pro_{mode}_vllm.jsonl")
+    result_path = os.path.join(results_dir, f"MMLU-Pro_{mode}_mas.jsonl")
     
     # 断点续跑：读取已有结果
     done_ids = set()
@@ -274,14 +220,19 @@ def run_mmlu_pro(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
             }
             
             final_ans = runner.run_reasoning(task)
-            flag = evaluator.check_mmlu(final_ans, task["Answer"])
+            
+            # 使用增强版答案提取，传入选项列表以支持内容匹配
+            pred_letter = evaluator.extract_mmlu_answer(final_ans, options=options)
+            flag = evaluator.check_mmlu(final_ans, task["Answer"], options=options)
             
             if flag:
                 acc += 1
             
             record = {
                 "id": task["id"],
-                "pred": final_ans,
+                "pred": pred_letter if pred_letter else "",
+                "pred_raw": str(final_ans)[:500] if final_ans else "",
+                "gold": task["Answer"],
                 "correct": flag,
             }
             fd.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -310,7 +261,7 @@ def run_gsm_hard(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
     if data_limit:
         data = data[:data_limit]
     
-    result_path = os.path.join(results_dir, "gsm-hard_vllm.jsonl")
+    result_path = os.path.join(results_dir, "gsm-hard_mas.jsonl")
     
     # 断点续跑：读取已有结果，跳过已处理的样本
     done_ids = set()
@@ -381,7 +332,7 @@ def run_srdd(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
     if data_limit:
         data = data[:data_limit]
     
-    result_path = os.path.join(results_dir, "srdd_vllm.jsonl")
+    result_path = os.path.join(results_dir, "srdd_mas.jsonl")
     
     # 断点续跑
     done_ids = set()
@@ -434,7 +385,7 @@ def run_creative_writing(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluat
     if data_limit:
         data = data[:data_limit]
     
-    result_path = os.path.join(results_dir, "cw_vllm.jsonl")
+    result_path = os.path.join(results_dir, "cw_mas.jsonl")
     
     # 断点续跑
     done_ids = set()
@@ -492,7 +443,7 @@ def run_scibench(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
     # 加载数据
     dataset = scibench.load_dataset(mode, data_limit)
     
-    result_path = os.path.join(results_dir, f"scibench_{mode}_vllm.jsonl")
+    result_path = os.path.join(results_dir, f"scibench_{mode}_mas.jsonl")
     
     # 断点续跑
     done_ids = set()
@@ -562,7 +513,7 @@ def run_scibench(runner: MASBenchmarkRunner, evaluator: BenchmarkEvaluator,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run MAS with local vLLM deployment")
+    parser = argparse.ArgumentParser(description="Run MAS-style scheduling on benchmarks")
     parser.add_argument("task", choices=["MMLU-Pro", "gsm-hard", "SRDD", "CW", "scibench"],
                        help="Benchmark task to run")
     parser.add_argument("mode", choices=["validation", "test"],
@@ -573,30 +524,24 @@ def main():
                        help="Specific task index (if applicable)")
     parser.add_argument("--data_limit", type=int, default=None,
                        help="Limit number of samples to process (default: process all)")
-    parser.add_argument("--max_steps", type=int, default=12,
-                       help="Maximum reasoning steps (default: 12)")
     parser.add_argument("--personas", type=str, default="personas/personas.jsonl",
                        help="Path to personas file")
+    parser.add_argument("--llm_model", type=str, default="",
+                       help="LLM model for scheduling (default: empty; set to an OpenAI-compatible model id if needed)")
     parser.add_argument("--resume", type=str, default=None,
-                       help="Resume from existing results directory")
-    parser.add_argument("--model", type=str, default="",
-                       help="Model id as registered in vLLM (default: $MAS_VLLM_MODEL)")
-    parser.add_argument("--base_url", type=str, default="",
-                       help="vLLM OpenAI-compatible endpoint "
-                            "(default: $MAS_VLLM_BASE_URL or http://localhost:8000/v1)")
-
+                       help="Resume from existing results directory (e.g., results_mas/gsm-hard_test_20251219_011431)")
+    
     args = parser.parse_args()
-
+    
     # Load global config
     with open("config/global.yaml", "r") as f:
         global_config = yaml.safe_load(f)
-
-    # Create vLLM-based MAS config
-    mas_config = create_vllm_config(
-        max_steps=args.max_steps,
-        model=args.model,
-        base_url=args.base_url,
-    )
+    
+    # Create MAS config
+    mas_config = DEFAULT_MAS_CONFIG
+    mas_config.llm_model = args.llm_model
+    # 评测时关闭 feedback 收集（节省 API 调用）
+    mas_config.collect_feedback = False
     
     # Create runner
     runner = MASBenchmarkRunner(args.personas, global_config, mas_config)
@@ -615,7 +560,7 @@ def main():
     else:
         # 新建目录
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        results_dir = os.path.join(os.getcwd(), "results_vllm", f"{args.task}_{args.mode}_{timestamp}")
+        results_dir = os.path.join(os.getcwd(), "results_mas", f"{args.task}_{args.mode}_{timestamp}")
         os.makedirs(results_dir, exist_ok=True)
         logger.info(f"Results will be saved to: {results_dir}")
     
@@ -637,3 +582,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

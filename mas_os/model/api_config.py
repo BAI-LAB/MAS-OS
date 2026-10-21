@@ -8,8 +8,8 @@ class APIConfig:
     
     def _init_config(self):
         """
-        Load API config from puppeteer project root, independent of CWD.
-        This allows importing puppeteer from external projects (e.g., MARTI/Ray workers)
+        Load API config from the MAS-OS project root, independent of CWD.
+        This allows importing MAS-OS from external projects (e.g., MARTI/Ray workers)
         without relying on './config/global.yaml' relative to the current working dir.
         """
         current_dir = os.path.dirname(os.path.abspath(__file__))

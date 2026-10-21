@@ -6,6 +6,7 @@
 
 <p>
   <a href="docs/MAS-OS_EMNLP_2026.pdf"><img src="https://img.shields.io/badge/Paper-PDF-b31b1b?logo=adobeacrobatreader&logoColor=white" alt="Paper PDF"></a>
+  <a href="docs/MAS-OS_EMNLP_2026.pdf"><img src="https://img.shields.io/badge/EMNLP-2026-1f6feb" alt="EMNLP 2026"></a>
   <a href="https://github.com/BAI-LAB/MAS-OS"><img src="https://img.shields.io/badge/Code-GitHub-181717?logo=github" alt="GitHub"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
   <a href="https://github.com/BAI-LAB/MAS-OS"><img src="https://img.shields.io/github/stars/BAI-LAB/MAS-OS?style=social" alt="Stars"></a>
@@ -27,6 +28,8 @@
 <p>
   <sup>†</sup>Corresponding author: <a href="mailto:baiting@bupt.edu.cn">baiting@bupt.edu.cn</a>
 </p>
+
+<p><b>Accepted to EMNLP 2026</b></p>
 
 </div>
 
@@ -78,9 +81,9 @@ flowchart LR
 
 | Module | Responsibility | Code |
 | :--- | :--- | :--- |
-| **Memory Manager** | Builds the graph-based MemoryPool, maintains temporal/semantic edges, and updates the rolling global summary. | [`memer.py`](puppeteer/mas_scheduler/memer.py) |
-| **Agent Scheduler** | Selects the next active agent conditioned on the task, global summary, previous agent, and its memory. | [`scheduler.py`](puppeteer/mas_scheduler/scheduler.py), [`lora_scheduler.py`](puppeteer/mas_scheduler/lora_scheduler.py) |
-| **Context Allocator** | Retrieves candidate memories from the graph and selects an agent-specific context within a budget. | [`router.py`](puppeteer/mas_scheduler/router.py), [`lora_router.py`](puppeteer/mas_scheduler/lora_router.py) |
+| **Memory Manager** | Builds the graph-based MemoryPool, maintains temporal/semantic edges, and updates the rolling global summary. | [`memer.py`](mas_os/mas_scheduler/memer.py) |
+| **Agent Scheduler** | Selects the next active agent conditioned on the task, global summary, previous agent, and its memory. | [`scheduler.py`](mas_os/mas_scheduler/scheduler.py), [`lora_scheduler.py`](mas_os/mas_scheduler/lora_scheduler.py) |
+| **Context Allocator** | Retrieves candidate memories from the graph and selects an agent-specific context within a budget. | [`router.py`](mas_os/mas_scheduler/router.py), [`lora_router.py`](mas_os/mas_scheduler/lora_router.py) |
 | **RL training** | Dual-LoRA training of the Scheduler and Router with RLOO, PPO, and KL regularization. | [`mas_dual_lora_workflow.py`](MARTI/marti/worlds/workflows/mas_dual_lora_workflow.py) |
 
 ## 📊 Results
@@ -221,7 +224,7 @@ Optional arguments: `<DATA_LIMIT> <MAX_STEPS> <RESUME_FROM>`.
 The OS pipeline can also run on top of a plain vLLM server:
 
 ```bash
-cd puppeteer
+cd mas_os
 python main_mas_vllm.py gsm-hard test \
   --model meta-llama/Llama-3.1-8B \
   --base_url http://localhost:8000/v1 \
@@ -235,7 +238,7 @@ MAS-OS/
 ├── MARTI/                       # RL training framework (verl-based)
 │   ├── marti/                   # trainers, worlds, workflows, verifiers
 │   └── scripts/                 # training / evaluation launch scripts
-├── puppeteer/                   # Agent runtime and MAS scheduler
+├── mas_os/                   # Agent runtime and MAS scheduler
 │   ├── mas_scheduler/           # Memory Manager, Scheduler, Context Allocator
 │   ├── agent/ tasks/ tools/     # agents, benchmarks, tools
 │   ├── data/                    # GSM-Hard, SciBench, SRDD, MMLU-Pro
@@ -249,14 +252,14 @@ MAS-OS/
 
 ## 📚 Benchmarks
 
-The repository ships the evaluation splits used in the paper under `puppeteer/data/`.
+The repository ships the evaluation splits used in the paper under `mas_os/data/`.
 
 | Benchmark | Task | Metric | Test Examples |
 | :--- | :--- | :--- | ---: |
-| [GSM-Hard](puppeteer/data/GSM-Hard) | Grade-school math with large numbers | Accuracy | 919 |
-| [SciBench](puppeteer/data/scibench) | College-level scientific problem solving | Accuracy | 492 |
-| [SRDD](puppeteer/data/SRDD) | Software generation from specifications | Quality score (completeness, executability, consistency) | 1,000 |
-| [MMLU-Pro](puppeteer/data/MMLU-Pro) | Multidisciplinary 10-way multiple choice | Accuracy | 500 |
+| [GSM-Hard](mas_os/data/GSM-Hard) | Grade-school math with large numbers | Accuracy | 919 |
+| [SciBench](mas_os/data/scibench) | College-level scientific problem solving | Accuracy | 492 |
+| [SRDD](mas_os/data/SRDD) | Software generation from specifications | Quality score (completeness, executability, consistency) | 1,000 |
+| [MMLU-Pro](mas_os/data/MMLU-Pro) | Multidisciplinary 10-way multiple choice | Accuracy | 500 |
 
 Each benchmark also includes a 200-example training split.
 
@@ -265,11 +268,11 @@ Each benchmark also includes a 200-example training split.
 If you find MAS-OS useful in your research, please cite:
 
 ```bibtex
-@misc{kang2026masos,
-  title  = {Collaborative Operating System of Multi-Agent Systems},
-  author = {Kang, Jiazheng and Zhao, Ruochen and Li, Gezi and Lin, Dongying and Bai, Ting},
-  year   = {2026},
-  note   = {Code available at https://github.com/BAI-LAB/MAS-OS}
+@inproceedings{kang2026masos,
+  title     = {Collaborative Operating System of Multi-Agent Systems},
+  author    = {Kang, Jiazheng and Zhao, Ruochen and Li, Gezi and Lin, Dongying and Bai, Ting},
+  booktitle = {Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  year      = {2026}
 }
 ```
 

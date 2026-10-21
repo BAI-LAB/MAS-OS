@@ -1,4 +1,4 @@
-"""LLM client for MAS scheduler, reusing puppeteer's OpenAI configuration."""
+"""LLM client for MAS scheduler, reusing MAS-OS's OpenAI configuration."""
 from __future__ import annotations
 
 import logging

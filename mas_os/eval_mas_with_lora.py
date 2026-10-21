@@ -40,7 +40,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MAS-LoRA-Eval")
 
-# Import puppeteer components
+# Import MAS-OS components
 from agent.register.register import agent_global_registry
 from agent.agent_info.global_info import GlobalInfo
 from utils.log_manager import LogManager
@@ -197,7 +197,7 @@ def convert_to_third_person(text: str) -> str:
 
 def build_agent_registry(agents_dict: Dict[str, Any]) -> AgentRegistry:
     """
-    从 puppeteer agent 实例构建 AgentRegistry，和 mas_dual_lora_workflow.py 完全一致。
+    从 MAS-OS agent 实例构建 AgentRegistry，和 mas_dual_lora_workflow.py 完全一致。
     包含第三人称转换。
     """
     specs = []
@@ -474,7 +474,7 @@ class LoRAMASReasoning:
         self.scheduler_llm = LoRALLMClient(vllm_url, base_model, "mas_scheduler")
         self.router_llm = LoRALLMClient(vllm_url, base_model, "mas_router")
         
-        # 初始化 Memer（使用 puppeteer 的 MASLLMClient）
+        # 初始化 Memer（使用 MAS-OS 的 MASLLMClient）
         try:
             llm_client = MASLLMClient(config)
         except Exception as e:

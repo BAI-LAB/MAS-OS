@@ -2,7 +2,7 @@
 SciBench Reward Function for MARTI Training.
 
 SciBench 数据集的训练奖励计算逻辑。
-与 puppeteer/tasks/evaluator.py 中的 check_scibench 保持一致。
+与 mas_os/tasks/evaluator.py 中的 check_scibench 保持一致。
 
 评测逻辑:
 1. 将 gold 转为 float
