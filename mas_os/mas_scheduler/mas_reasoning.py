@@ -112,7 +112,7 @@ class MASReasoning:
         logger.info("=" * 60)
     
     def _build_registry(self, agents: Dict[str, Any]) -> AgentRegistry:
-        """Build AgentRegistry from puppeteer agent instances."""
+        """Build AgentRegistry from MAS-OS agent instances."""
         specs = []
         for name, agent in agents.items():
             # Extract agent info

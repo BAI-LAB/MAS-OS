@@ -10,7 +10,7 @@ RESUME_FROM=${6:-""}
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 MARTI_ROOT=$(cd -- "${SCRIPT_DIR}/.." && pwd)
-PUPPETEER_DIR="${MARTI_ROOT}/../puppeteer"
+MAS_OS_DIR="${MARTI_ROOT}/../mas_os"
 
 if [[ ! "${CKPT_DIR}" = /* ]]; then
     if [[ -d "${CKPT_DIR}" ]]; then
@@ -56,5 +56,5 @@ if [[ -n "${RESUME_FROM}" ]]; then
 fi
 
 # 运行评测
-cd "${PUPPETEER_DIR}"
+cd "${MAS_OS_DIR}"
 python eval_mas_with_lora.py "${EVAL_ARGS[@]}"

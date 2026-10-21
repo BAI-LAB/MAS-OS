@@ -4,9 +4,9 @@ MARTI workflow for MAS dual LoRA training (Scheduler + Router).
 核心逻辑：
 1. Scheduler LoRA (agent_index=0): 使用 MARTI vLLM 决定下一个 worker agent
 2. Router LoRA (agent_index=1): 使用 MARTI vLLM 选择相关记忆
-3. Worker agents: 调用 puppeteer 的外部 API（和 main_mas.py 一样）
+3. Worker agents: 调用 MAS-OS 的外部 API（和 main_mas.py 一样）
 
-提示词格式和 puppeteer/mas_scheduler/scheduler.py、router.py 完全一致。
+提示词格式和 mas_os/mas_scheduler/scheduler.py、router.py 完全一致。
 """
 
 from __future__ import annotations
@@ -19,53 +19,53 @@ import logging
 from typing import Any, Dict, List, Optional
 import ray
 
-# Ensure puppeteer is on path
+# Ensure mas_os is on path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 # MARTI repo root (this file is marti/worlds/workflows/...)
 MARTI_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../../../../"))
-# Project root that contains both MARTI and puppeteer
+# Project root that contains both MARTI and mas_os
 PROJECT_ROOT = os.path.abspath(os.path.join(MARTI_ROOT, ".."))
-PUPPETEER_DIR = os.path.join(PROJECT_ROOT, "puppeteer")
+MAS_OS_DIR = os.path.join(PROJECT_ROOT, "mas_os")
 
-# For importing `puppeteer` as a package, we need PROJECT_ROOT on sys.path
+# For importing `mas_os` as a package, we need PROJECT_ROOT on sys.path
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 logger = logging.getLogger("MAS")
 logging.basicConfig(level=logging.INFO, format='[%(name)s] %(message)s')
 
-# Import puppeteer components
+# Import MAS-OS components
 try:
-    from puppeteer.mas_scheduler.verl_integration import (
+    from mas_os.mas_scheduler.verl_integration import (
         MASRewardConfig,
         SchedulerRewardFunction,
         RouterRewardFunction,
     )
-    from puppeteer.mas_scheduler.config import MASConfig, DEFAULT_MAS_CONFIG
-    from puppeteer.mas_scheduler.memer import Memer, MemoryNode
-    from puppeteer.mas_scheduler.scheduler import AgentRegistry, AgentSpec
-    from puppeteer.mas_scheduler.task_state import MASTaskState, AgentResult
-    from puppeteer.mas_scheduler.agent_feedback import (
+    from mas_os.mas_scheduler.config import MASConfig, DEFAULT_MAS_CONFIG
+    from mas_os.mas_scheduler.memer import Memer, MemoryNode
+    from mas_os.mas_scheduler.scheduler import AgentRegistry, AgentSpec
+    from mas_os.mas_scheduler.task_state import MASTaskState, AgentResult
+    from mas_os.mas_scheduler.agent_feedback import (
         AgentFeedbackCollector,
         extract_agent_output_text,
         MemoryUsefulnessFeedback,
     )
-    from puppeteer.agent.register.register import agent_global_registry
-    from puppeteer.agent.agent_info.global_info import GlobalInfo
-    from puppeteer.utils.log_manager import LogManager
-    from puppeteer.tasks.evaluator import BenchmarkEvaluator
+    from mas_os.agent.register.register import agent_global_registry
+    from mas_os.agent.agent_info.global_info import GlobalInfo
+    from mas_os.utils.log_manager import LogManager
+    from mas_os.tasks.evaluator import BenchmarkEvaluator
 
-    PUPPETEER_AVAILABLE = True
+    MAS_OS_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"[MAS Workflow] Puppeteer import failed: {e}")
-    PUPPETEER_AVAILABLE = False
+    logger.warning(f"[MAS Workflow] MAS-OS import failed: {e}")
+    MAS_OS_AVAILABLE = False
 
 
 # ========== Prompt builders ==========
-# The real builders live in puppeteer (single source of truth) so the prompts
+# The real builders live in MAS-OS (single source of truth) so the prompts
 # used during training are byte-for-byte identical to the ones the inference
 # path sends. This file previously kept its own copies, which had already
-# drifted. Imported lazily because puppeteer may not be importable at module
+# drifted. Imported lazily because mas_os may not be importable at module
 # load time in a Ray worker.
 
 
@@ -76,9 +76,9 @@ def format_scheduler_prompt(
     pre_agent: Optional[str] = None,
     pre_mem: str = "",
 ) -> tuple[str, str]:
-    """Thin wrapper over puppeteer's build_scheduler_prompt (kept for the
+    """Thin wrapper over MAS-OS's build_scheduler_prompt (kept for the
     existing call sites below). Returns (system_prompt, user_prompt)."""
-    from puppeteer.mas_scheduler.scheduler import build_scheduler_prompt
+    from mas_os.mas_scheduler.scheduler import build_scheduler_prompt
 
     return build_scheduler_prompt(
         question=question,
@@ -90,8 +90,8 @@ def format_scheduler_prompt(
 
 
 def format_memory_candidates(topm_nodes) -> str:
-    """Thin wrapper over puppeteer's format_memory_candidates."""
-    from puppeteer.mas_scheduler.router import format_memory_candidates as _fmt
+    """Thin wrapper over MAS-OS's format_memory_candidates."""
+    from mas_os.mas_scheduler.router import format_memory_candidates as _fmt
 
     return _fmt(topm_nodes)
 
@@ -106,9 +106,9 @@ def format_router_prompt(
     top_n: int = 3,
     agent_description: str = "",
 ) -> tuple[str, str]:
-    """Thin wrapper over puppeteer's build_router_prompt (kept for the existing
+    """Thin wrapper over MAS-OS's build_router_prompt (kept for the existing
     call sites below). Returns (system_prompt, user_prompt)."""
-    from puppeteer.mas_scheduler.router import build_router_prompt
+    from mas_os.mas_scheduler.router import build_router_prompt
 
     return build_router_prompt(
         question=question,
@@ -123,7 +123,7 @@ def format_router_prompt(
 
 
 def build_agent_registry(agents_dict: Dict[str, Any]) -> AgentRegistry:
-    """Build AgentRegistry from puppeteer agent instances."""
+    """Build AgentRegistry from MAS-OS agent instances."""
     specs = []
     for name, agent in agents_dict.items():
         role_prompt = getattr(agent, 'role_prompt', '')
@@ -431,19 +431,19 @@ async def workflow(
     
     - agents[0]: Scheduler LoRA (vLLM engine) - 决定下一个 worker agent
     - agents[1]: Router LoRA (vLLM engine) - 选择相关记忆
-    - Worker agents: puppeteer agents (外部 API 调用)
+    - Worker agents: MAS-OS agents (外部 API 调用)
     """
     import yaml
     
-    # Ensure puppeteer is on path (in case sys.path was reset in Ray worker)
-    global PROJECT_ROOT, PUPPETEER_DIR
+    # Ensure mas_os is on path (in case sys.path was reset in Ray worker)
+    global PROJECT_ROOT, MAS_OS_DIR
     if PROJECT_ROOT not in sys.path:
         sys.path.insert(0, PROJECT_ROOT)
     
-    # Re-import puppeteer if needed (in case import failed at module level).
+    # Re-import mas_os if needed (in case import failed at module level).
     # IMPORTANT: declare these as globals so the conditional imports below do NOT create
     # function-local variables (which would cause UnboundLocalError when the branch isn't taken).
-    global PUPPETEER_AVAILABLE
+    global MAS_OS_AVAILABLE
     global MASRewardConfig, SchedulerRewardFunction, RouterRewardFunction
     global MASConfig, DEFAULT_MAS_CONFIG
     global Memer, MemoryNode
@@ -451,36 +451,36 @@ async def workflow(
     global MASTaskState, AgentResult
     global AgentFeedbackCollector, extract_agent_output_text, MemoryUsefulnessFeedback
     global agent_global_registry, GlobalInfo, LogManager, BenchmarkEvaluator
-    if not PUPPETEER_AVAILABLE:
+    if not MAS_OS_AVAILABLE:
         try:
-            from puppeteer.mas_scheduler.verl_integration import (
+            from mas_os.mas_scheduler.verl_integration import (
                 MASRewardConfig,
                 SchedulerRewardFunction,
                 RouterRewardFunction,
             )
-            from puppeteer.mas_scheduler.config import MASConfig, DEFAULT_MAS_CONFIG
-            from puppeteer.mas_scheduler.memer import Memer, MemoryNode
-            from puppeteer.mas_scheduler.scheduler import AgentRegistry, AgentSpec
-            from puppeteer.mas_scheduler.task_state import MASTaskState, AgentResult
-            from puppeteer.mas_scheduler.agent_feedback import (
+            from mas_os.mas_scheduler.config import MASConfig, DEFAULT_MAS_CONFIG
+            from mas_os.mas_scheduler.memer import Memer, MemoryNode
+            from mas_os.mas_scheduler.scheduler import AgentRegistry, AgentSpec
+            from mas_os.mas_scheduler.task_state import MASTaskState, AgentResult
+            from mas_os.mas_scheduler.agent_feedback import (
                 AgentFeedbackCollector,
                 extract_agent_output_text,
                 MemoryUsefulnessFeedback,
             )
-            from puppeteer.agent.register.register import agent_global_registry
-            from puppeteer.agent.agent_info.global_info import GlobalInfo
-            from puppeteer.utils.log_manager import LogManager
-            from puppeteer.tasks.evaluator import BenchmarkEvaluator
-            PUPPETEER_AVAILABLE = True
-            logger.info(f"[MAS Workflow] Successfully imported puppeteer from {PUPPETEER_DIR}")
+            from mas_os.agent.register.register import agent_global_registry
+            from mas_os.agent.agent_info.global_info import GlobalInfo
+            from mas_os.utils.log_manager import LogManager
+            from mas_os.tasks.evaluator import BenchmarkEvaluator
+            MAS_OS_AVAILABLE = True
+            logger.info(f"[MAS Workflow] Successfully imported mas_os from {MAS_OS_DIR}")
         except ImportError as e:
-            logger.error(f"[MAS Workflow] Puppeteer import failed: {e}")
+            logger.error(f"[MAS Workflow] MAS-OS import failed: {e}")
             logger.error(f"[MAS Workflow] PROJECT_ROOT: {PROJECT_ROOT}, exists: {os.path.exists(PROJECT_ROOT)}")
-            logger.error(f"[MAS Workflow] PUPPETEER_DIR: {PUPPETEER_DIR}, exists: {os.path.exists(PUPPETEER_DIR)}")
+            logger.error(f"[MAS Workflow] MAS_OS_DIR: {MAS_OS_DIR}, exists: {os.path.exists(MAS_OS_DIR)}")
             logger.error(f"[MAS Workflow] sys.path (head): {sys.path[:5]}...")
     
-    if not PUPPETEER_AVAILABLE:
-        logger.error("[MAS Workflow] Puppeteer not available!")
+    if not MAS_OS_AVAILABLE:
+        logger.error("[MAS Workflow] MAS-OS not available!")
         return {"prompt": prompt, "label": label, "trajectory": [], "final_reward": -1.0}
     
     workflow_args = workflow_args or {}
@@ -498,11 +498,11 @@ async def workflow(
         metadata = {"id": task_id}
     personas_path = workflow_args.get(
         "personas_path",
-        os.path.join(PUPPETEER_DIR, "personas", "personas.jsonl"),
+        os.path.join(MAS_OS_DIR, "personas", "personas.jsonl"),
     )
     global_config_path = workflow_args.get(
         "global_config",
-        os.path.join(PUPPETEER_DIR, "config", "global.yaml"),
+        os.path.join(MAS_OS_DIR, "config", "global.yaml"),
     )
     max_steps = workflow_args.get("max_steps", 8)
 
@@ -523,7 +523,7 @@ async def workflow(
         logger.warning(f"[MAS Workflow] Cannot load global config: {e}")
         global_config = {}
     
-    # ---------- Setup Worker Agents (puppeteer, 外部 API) ----------
+    # ---------- Setup Worker Agents (MAS-OS, 外部 API) ----------
     agent_global_registry.register_all_agents(personas_path)
     agent_global_registry.reset_all_agents()
     worker_agents: Dict[str, Any] = {}
@@ -541,7 +541,7 @@ async def workflow(
     # ---------- Setup Memory (Memer) ----------
     mas_config = DEFAULT_MAS_CONFIG
     mas_config.max_steps = max_steps
-    # Allow overriding retrieval budget from workflow_args without editing puppeteer code
+    # Allow overriding retrieval budget from workflow_args without editing MAS-OS code
     try:
         if "top_m" in workflow_args and workflow_args["top_m"] is not None:
             mas_config.top_m = int(workflow_args["top_m"])
@@ -565,7 +565,7 @@ async def workflow(
     except Exception:
         pass
     
-    from puppeteer.mas_scheduler.llm import MASLLMClient
+    from mas_os.mas_scheduler.llm import MASLLMClient
     try:
         llm_client = MASLLMClient(mas_config)
     except Exception as e:
@@ -731,7 +731,7 @@ async def workflow(
         )
     )
     
-    naturally_finished = False  # Track if task finished naturally (和 puppeteer 一致)
+    naturally_finished = False  # Track if task finished naturally (和 MAS-OS 一致)
     
     for step in range(max_steps):
         step_1idx = step + 1
@@ -1104,7 +1104,7 @@ async def workflow(
         logger.info("\n" + "=" * 60)
         logger.info("[MAS] No answer collected, forcing Concluder to generate final answer...")
         
-        # Find a concluder-type agent (和 puppeteer/_force_final_answer 一致)
+        # Find a concluder-type agent (和 mas_os/_force_final_answer 一致)
         concluder_agent = None
         concluder_name = None
         for name, agent in worker_agents.items():

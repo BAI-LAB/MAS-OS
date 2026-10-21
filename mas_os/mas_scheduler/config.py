@@ -169,7 +169,7 @@ class TrainingConfig:
 
 
 def load_mas_config() -> MASConfig:
-    """Load MAS config, merging with puppeteer's global config for API keys."""
+    """Load MAS config, merging with MAS-OS's global config for API keys."""
     config = MASConfig()
     
     # 使用绝对路径加载配置，避免依赖当前工作目录

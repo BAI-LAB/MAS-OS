@@ -63,14 +63,14 @@ class MemoryUsefulnessFeedback:
 def extract_agent_output_text(action: Any) -> str:
     """Render a worker agent's action into the text shown to the post-hoc judge.
 
-    Accepts a puppeteer `Action` (see puppeteer/agent/agent_info/workflow.py) or
+    Accepts a MAS-OS `Action` (see mas_os/agent/agent_info/workflow.py) or
     anything dict-like. Prefers the action's own `to_str()`, then falls back to
     the informative fields of `to_dict()`, then to `str()`.
     """
     if action is None:
         return ""
 
-    # puppeteer Action exposes to_str() -> "Agent: .. Action: .. Result: .."
+    # MAS-OS Action exposes to_str() -> "Agent: .. Action: .. Result: .."
     to_str = getattr(action, "to_str", None)
     if callable(to_str):
         try:

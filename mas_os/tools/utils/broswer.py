@@ -20,7 +20,7 @@ from .converter import MarkdownConverter, UnsupportedFormatException, FileConver
 import diskcache as dc
 import yaml
 
-# Load global config relative to the puppeteer project root, not CWD.
+# Load global config relative to the MAS-OS project root, not CWD.
 # This makes it robust when imported from MARTI / Ray workers.
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_CURRENT_DIR, "../../"))

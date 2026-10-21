@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use MAS-OS in your research, please cite the accompanying paper and this repository."
+title: "MAS-OS: Collaborative Operating System of Multi-Agent Systems"
+abstract: >-
+  MAS-OS is a memory-centric collaborative operating system for LLM-based
+  multi-agent systems. It unifies a Memory Manager, an Agent Scheduler, and a
+  Context Allocator, and jointly optimizes scheduling and context allocation
+  with reinforcement learning.
+type: software
+authors:
+  - family-names: Kang
+    given-names: Jiazheng
+    affiliation: "Beijing University of Posts and Telecommunications"
+    email: kjz@bupt.edu.cn
+  - family-names: Zhao
+    given-names: Ruochen
+    affiliation: "Beijing University of Posts and Telecommunications"
+  - family-names: Li
+    given-names: Gezi
+    affiliation: "Huawei Technologies Co., Ltd."
+  - family-names: Lin
+    given-names: Dongying
+    affiliation: "Huawei Technologies Co., Ltd."
+  - family-names: Bai
+    given-names: Ting
+    affiliation: "Beijing University of Posts and Telecommunications"
+    email: baiting@bupt.edu.cn
+repository-code: "https://github.com/BAI-LAB/MAS-OS"
+url: "https://github.com/BAI-LAB/MAS-OS"
+year: 2026
+keywords:
+  - multi-agent systems
+  - large language models
+  - agent scheduling
+  - context allocation
+  - memory management
+  - reinforcement learning
+preferred-citation:
+  type: conference-paper
+  title: "Collaborative Operating System of Multi-Agent Systems"
+  authors:
+    - family-names: Kang
+      given-names: Jiazheng
+    - family-names: Zhao
+      given-names: Ruochen
+    - family-names: Li
+      given-names: Gezi
+    - family-names: Lin
+      given-names: Dongying
+    - family-names: Bai
+      given-names: Ting
+  collection-title: "Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing (EMNLP)"
+  year: 2026

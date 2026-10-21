@@ -22,7 +22,7 @@ EXP="${DATE}-${TASK}-${SHORT_NAME}-${ADVANTAGE}-${ALGO}"
 
 SAVE_PATH="${ROOT_DIR}/outputs/${ADVANTAGE}-${ALGO}/${DATE}/${SHORT_NAME}/model"
 
-DATA_ROOT="${ROOT_DIR}/../puppeteer/data"
+DATA_ROOT="${ROOT_DIR}/../mas_os/data"
 case "$(echo "${TASK_NAME}" | tr '[:upper:]' '[:lower:]')" in
   "gsm-hard"|"gsm8k"|"gsm")
     PROMPT_DATA="${DATA_ROOT}/GSM-Hard/train.jsonl"
@@ -75,7 +75,7 @@ ENV_JSON=$(cat <<EOF
   "excludes": ["data/", "outputs/", ".git/", "local/", "logs/"],
   "pip": ["hydra-core", "antlr4-python3-runtime==4.9.3", "shortuuid", "class_registry", "json5", "mcp[cli]"],
   "env_vars": {
-    "PYTHONPATH": "${ROOT_DIR}/..:${ROOT_DIR}/../puppeteer:${ROOT_DIR}/puppeteer:${PYTHONPATH:-}",
+    "PYTHONPATH": "${ROOT_DIR}/..:${ROOT_DIR}/../mas_os:${ROOT_DIR}/mas_os:${PYTHONPATH:-}",
     "CUDA_VISIBLE_DEVICES": "${CUDA_VISIBLE_DEVICES:-0,1}",
     "HF_HUB_OFFLINE": "${HF_OFFLINE}",
     "TRANSFORMERS_OFFLINE": "${HF_OFFLINE}"
@@ -134,8 +134,8 @@ ray job submit --address="http://localhost:8265" \
     default_agent.micro_train_batch_size=2 \
     +default_agent.accumulation_steps=4 \
     +default_agent.progress_log_interval=10.0 \
-    +workflow_args.personas_path="${ROOT_DIR}/../puppeteer/personas/personas.jsonl" \
-    +workflow_args.global_config="${ROOT_DIR}/../puppeteer/config/global.yaml" \
+    +workflow_args.personas_path="${ROOT_DIR}/../mas_os/personas/personas.jsonl" \
+    +workflow_args.global_config="${ROOT_DIR}/../mas_os/config/global.yaml" \
     +workflow_args.top_m=7 \
     +workflow_args.top_n=3 \
     +workflow_args.task_type="${TASK_NAME}" \

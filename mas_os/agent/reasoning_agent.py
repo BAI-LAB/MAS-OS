@@ -39,7 +39,7 @@ class Reasoning_Agent(Agent):
         self._activated = True
  
         system_step_data = global_info.workflow.valid_tool_results
-        # Resolve prompt files relative to puppeteer project root (not CWD).
+        # Resolve prompt files relative to the MAS-OS project root (not CWD).
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, ".."))
         prompt_filepath = os.path.join(project_root, "prompts", "general", "system_prompt.json")

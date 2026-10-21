@@ -1,4 +1,4 @@
-"""MAS-style Multi-Agent Scheduler for Puppeteer.
+"""MAS-style Multi-Agent Scheduler for MAS-OS.
 
 This module implements a hierarchical multi-agent scheduling framework
 based on the MAS (Multi-Agent System) design with:

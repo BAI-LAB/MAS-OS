@@ -1,6 +1,6 @@
 
 beautifulsoup4==4.13.5
-# Required by puppeteer/tools/web_search.py (imported unconditionally, so every
+# Required by mas_os/tools/web_search.py (imported unconditionally, so every
 # entry point that registers agents needs it).
 arxiv
 chromadb==0.5.7
