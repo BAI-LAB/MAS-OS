@@ -26,6 +26,7 @@ workspace/
 
 # Paper source
 *.pdf
+!docs/MAS-OS_EMNLP_2026.pdf
 
 # OS / editor
 .DS_Store
