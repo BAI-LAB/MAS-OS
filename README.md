@@ -60,24 +60,13 @@ Large language model-driven Multi-Agent Systems (MAS) face two key challenges in
 
 MAS-OS treats the multi-agent system as an operating system whose kernel manages memory, compute (agents), and communication (context).
 
-```mermaid
-flowchart LR
-    X([Task x]) --> MM
+<p align="center">
+  <img src="docs/assets/fig2_framework.png" width="100%" alt="Overview of the MAS-OS framework">
+</p>
 
-    subgraph MM["Memory Manager"]
-        direction TB
-        MP[("MemoryPool<br/>memory graph + summaries")]
-        GS["Rolling Global Summary"]
-    end
-
-    MM -->|"global summary"| SCH["Agent Scheduler"]
-    MM -->|"candidate memory"| CTX["Context Allocator"]
-    SCH -->|"next agent a_t"| AG["Activated Agent"]
-    CTX -->|"agent-specific memory"| AG
-    X --> AG
-    AG -->|"raw output + summary"| MM
-    AG --> Y([Final Answer])
-```
+<p align="center">
+  <em><b>Figure 2: Overview of the MAS-OS framework.</b> A memory-centric collaborative OS with three core components: (1) the <b>Memory Manager</b> maintains the MemoryPool and updates the rolling global summary; (2) the <b>Agent Scheduler</b> activates the next agent based on the current memory state; and (3) the <b>Context Allocator</b> allocates a relevant memory context to the active agent.</em>
+</p>
 
 | Module | Responsibility | Code |
 | :--- | :--- | :--- |
